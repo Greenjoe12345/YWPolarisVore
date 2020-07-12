@@ -530,6 +530,14 @@
 	ckeywhitelist = list("gozulio")
 	character_name = null
 
+//greenjoe
+//Ecise Itire
+/datum/gear/fluff/wheelchairmotorized
+	path = /obj/item/wheelchair/fluff/motorized
+	display_name = "electric wheelchair"
+	ckeywhitelist = list("greenjoe")
+	character_name = list("Ecise Itire")
+
 //  H CKEYS
 
 //hagawaga

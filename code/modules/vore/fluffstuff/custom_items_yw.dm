@@ -683,3 +683,187 @@
 		new P(src)
 	..()
 	return
+
+
+// *************
+// Greenjoe
+// *************
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized
+	name = "small electric wheelchair"
+	desc = "An electric wheelchair, too small for an adult human, it's controlled by a joystick on the armrest.."
+	icon = 'icons/vore/custom_items_yw.dmi'
+	icon_state = "motorchair-rear"
+	anchored = 0
+	buckle_movable = 1
+
+	driving = 0
+	mob/living/pulling = null
+	bloodiness
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/update_icon()
+	return
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/set_dir()
+	..()
+	cut_overlays()
+	var/image/O = image(icon = 'icons/vore/custom_items_yw.dmi', icon_state = "motorchair-fore", layer = FLY_LAYER, dir = src.dir)
+	add_overlay(O)
+	if(has_buckled_mobs())
+		for(var/A in buckled_mobs)
+			var/mob/living/L = A
+			L.set_dir(dir)
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/attackby(obj/item/weapon/W as obj, mob/user as mob)
+	if(W.is_wrench() || W.is_wirecutter() || istype(W,/obj/item/stack))
+		return
+	..()
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/relaymove(mob/user, direction)
+	// Redundant check?
+	if(user.stat || user.stunned || user.weakened || user.paralysis || user.lying || user.restrained())
+		if(user==pulling)
+			pulling = null
+			user.pulledby = null
+			to_chat(user, "<span class='warning'>You lost your grip!</span>")
+		return
+	if(has_buckled_mobs() && pulling && user in buckled_mobs)
+		if(pulling.stat || pulling.stunned || pulling.weakened || pulling.paralysis || pulling.lying || pulling.restrained())
+			pulling.pulledby = null
+			pulling = null
+	if(user.pulling && (user == pulling))
+		pulling = null
+		user.pulledby = null
+		return
+	if(propelled)
+		return
+	if(pulling && (get_dist(src, pulling) > 1))
+		pulling = null
+		user.pulledby = null
+		if(user==pulling)
+			return
+	if(pulling && (get_dir(src.loc, pulling.loc) == direction))
+		to_chat(user, "<span class='warning'>You cannot go there.</span>")
+		return
+	if(pulling && has_buckled_mobs() && (user in buckled_mobs))
+		to_chat(user, "<span class='warning'>You cannot drive while being pushed.</span>")
+		return
+
+	// Let's roll
+	driving = 1
+	var/turf/T = null
+	//--1---Move occupant---1--//
+	if(has_buckled_mobs())
+		for(var/A in buckled_mobs)
+			var/mob/living/L = A
+			L.buckled = null
+			step(L, direction)
+			L.buckled = src
+	//--2----Move driver----2--//
+	if(pulling)
+		T = pulling.loc
+		if(get_dist(src, pulling) >= 1)
+			step(pulling, get_dir(pulling.loc, src.loc))
+	//--3--Move wheelchair--3--//
+	step(src, direction)
+	if(has_buckled_mobs()) // Make sure it stays beneath the occupant
+		var/mob/living/L = buckled_mobs[1]
+		Move(L.loc)
+	set_dir(direction)
+	if(pulling) // Driver
+		if(pulling.loc == src.loc) // We moved onto the wheelchair? Revert!
+			pulling.forceMove(T)
+		else
+			spawn(0)
+			if(get_dist(src, pulling) > 1) // We are too far away? Losing control.
+				pulling = null
+				user.pulledby = null
+			pulling.set_dir(get_dir(pulling, src)) // When everything is right, face the wheelchair
+	if(bloodiness)
+		create_track()
+	driving = 0
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/Moved(atom/old_loc, direction, forced = FALSE)
+	. = ..()
+
+	cut_overlays()
+	playsound(src, 'sound/effects/roll.ogg', 75, 1)
+	if(has_buckled_mobs())
+		for(var/A in buckled_mobs)
+			var/mob/living/occupant = A
+			if(!driving)
+				occupant.buckled = null
+				occupant.Move(src.loc)
+				occupant.buckled = src
+				if (occupant && (src.loc != occupant.loc))
+					if (propelled)
+						for (var/mob/O in src.loc)
+							if (O != occupant)
+								Bump(O)
+					else
+						unbuckle_mob()
+				if (pulling && (get_dist(src, pulling) > 1))
+					pulling.pulledby = null
+					to_chat(pulling, "<span class='warning'>You lost your grip!</span>")
+					pulling = null
+			else
+				if (occupant && (src.loc != occupant.loc))
+					src.forceMove(occupant.loc) // Failsafe to make sure the wheelchair stays beneath the occupant after driving
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/attack_hand(mob/living/user as mob)
+	if (pulling)
+		MouseDrop(usr)
+	else
+		if(has_buckled_mobs())
+			for(var/A in buckled_mobs)
+				user_unbuckle_mob(A, user)
+	return
+
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/create_track()
+	var/obj/effect/decal/cleanable/blood/tracks/B = new(loc)
+	var/newdir = get_dir(get_step(loc, dir), loc)
+	if(newdir == dir)
+		B.set_dir(newdir)
+	else
+		newdir = newdir | dir
+		if(newdir == 3)
+			newdir = 1
+		else if(newdir == 12)
+			newdir = 4
+		B.set_dir(newdir)
+	bloodiness--
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/buckle_mob(mob/M as mob, mob/user as mob)
+	if(M == pulling)
+		pulling = null
+		usr.pulledby = null
+	..()
+
+/obj/item/wheelchair/fluff/motorized
+	name = "wheelchair"
+	desc = "A folded wheelchair that can be carried around."
+	icon = 'icons/vore/custom_items_yw.dmi'
+	icon_state = "motorchair-packed"
+	item_state = "wheelchair"
+	w_class = ITEMSIZE_HUGE // Can't be put in backpacks. Oh well.
+
+/obj/item/wheelchair/attack_self(mob/user)
+		var/obj/structure/bed/chair/wheelchair/fluff/motorized/R = new /obj/structure/bed/chair/wheelchair/fluff/motorized(user.loc)
+		R.add_fingerprint(user)
+		R.name = src.name
+		R.color = src.color
+		qdel(src)
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/MouseDrop(over_object, src_location, over_location)
+	..()
+	if((over_object == usr && (in_range(src, usr) || usr.contents.Find(src))))
+		if(!ishuman(usr))	return
+		if(has_buckled_mobs())	return 0
+		visible_message("[usr] collapses \the [src.name].")
+		var/obj/item/wheelchair/fluff/motorized/R = new/obj/item/wheelchair/fluff/motorized(get_turf(src))
+		R.name = src.name
+		R.color = src.color
+		spawn(0)
+			qdel(src)
+		return
