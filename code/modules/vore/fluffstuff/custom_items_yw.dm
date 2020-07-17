@@ -725,3 +725,14 @@
 		R.name = src.name
 		R.color = src.color
 		qdel(src)
+
+/obj/structure/bed/chair/wheelchair/fluff/motorized/MouseDrop(over_object, src_location, over_location)
+	if((over_object == usr && (in_range(src, usr) || usr.contents.Find(src))))
+		if(!ishuman(usr))    return
+		if(has_buckled_mobs())    return 0
+		visible_message("[usr] collapses \the [src.name].")
+		var/obj/item/wheelchair/fluff/motorized/R = new/obj/item/wheelchair/fluff/motorized(get_turf(src))
+		R.name = src.name
+		spawn(0)
+			qdel(src)
+		return
